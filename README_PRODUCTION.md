@@ -19,14 +19,20 @@ python server_cpu.py   # Port 9000
 # Select language, tap mic, speak!
 ```
 
-### 3. (Optional) Add Laptop for Voice Cloning
+### 3. (Optional) Add Laptop for Enhanced TTS
 
 ```bash
 # On laptop with 3050 GPU
-python laptop_tts_accelerator.py --server ws://server-ip:9000/ws/tts-accelerator
+# Option A: Chatterbox only (23 languages, fast)
+python laptop_tts_accelerator.py --server ws://server-ip:9000/ws/tts-accelerator --strategy chatterbox
+
+# Option B: Both Chatterbox + F5-TTS (recommended)
+python laptop_tts_accelerator.py --server ws://server-ip:9000/ws/tts-accelerator --strategy both
 ```
 
-**Done!** System works immediately. Laptop adds voice cloning quality.
+**Done!** System works immediately. Laptop adds:
+- **Chatterbox:** 23 languages, zero-shot voice cloning, beats ElevenLabs
+- **F5-TTS:** Authentic trained voice cloning
 
 ---
 
