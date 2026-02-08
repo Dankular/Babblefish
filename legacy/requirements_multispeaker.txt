@@ -1,0 +1,12 @@
+# Multi-Speaker Translation with TTS Dependencies
+
+# All requirements from requirements_tts.txt
+-r requirements_tts.txt
+
+# Speaker Diarization
+pyannote.audio>=3.1.0  # Speaker diarization and embedding
+torch>=2.0.0  # Already installed, but required for pyannote
+
+# Note: pyannote.audio models require Hugging Face authentication
+# Run: huggingface-cli login
+# Accept model terms at: https://huggingface.co/pyannote/embedding

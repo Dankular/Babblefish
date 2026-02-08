@@ -1,0 +1,16 @@
+# Text-to-Speech Dependencies
+
+# Kokoro TTS (fast, high-quality TTS)
+kokoro-onnx>=0.1.0  # ONNX-optimized Kokoro
+onnxruntime>=1.16.0  # Already installed
+
+# F5-TTS (voice cloning)
+git+https://github.com/SWivid/F5-TTS.git  # F5-TTS from source
+
+# Audio processing
+soundfile>=0.12.0
+librosa>=0.10.0
+scipy>=1.11.0  # Already installed
+
+# Vector storage for speaker embeddings
+faiss-cpu>=1.7.4  # For similarity search
