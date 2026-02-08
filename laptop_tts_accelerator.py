@@ -33,7 +33,7 @@ else:
 
 class ChatterboxEngine:
     """
-    Chatterbox Turbo TTS - Fast multilingual with zero-shot voice cloning
+    Chatterbox Multilingual TTS - Fast multilingual with zero-shot voice cloning
 
     Features:
     - 23 languages supported
@@ -42,8 +42,13 @@ class ChatterboxEngine:
     - Beats ElevenLabs in blind tests (63.75% preference)
     """
 
-    def __init__(self, device: str = "cuda" if torch.cuda.is_available() else "cpu"):
+    def __init__(
+        self,
+        device: str = "cuda" if torch.cuda.is_available() else "cpu",
+        model_variant: str = "multilingual"
+    ):
         self.device = device
+        self.model_variant = model_variant
         self.model = None
         self.sample_rate = 24000
 
@@ -59,19 +64,26 @@ class ChatterboxEngine:
         ]
 
     def load_model(self):
-        """Load Chatterbox Turbo model"""
-        print(f"Loading Chatterbox Turbo on {self.device}...")
+        """Load Chatterbox Multilingual model"""
+        # Map variant to model name
+        model_map = {
+            "multilingual": "ResembleAI/chatterbox",
+            "turbo": "ResembleAI/chatterbox-turbo"
+        }
+        model_name = model_map.get(self.model_variant, "ResembleAI/chatterbox")
+
+        print(f"Loading Chatterbox Multilingual ({self.model_variant}) on {self.device}...")
 
         try:
             # Try to import chatterbox
             from chatterbox import ChatterboxTTS
 
             self.model = ChatterboxTTS(
-                model="ResembleAI/chatterbox-turbo",
+                model=model_name,
                 device=self.device
             )
 
-            print("[OK] Chatterbox Turbo loaded")
+            print(f"[OK] Chatterbox Multilingual ({self.model_variant}) loaded")
             print(f"[INFO] Supported languages: {len(self.supported_languages)}")
 
             if self.device == "cuda":
@@ -321,7 +333,8 @@ class TTSAccelerator:
     def __init__(
         self,
         server_url: str = "ws://localhost:9000/ws/tts-accelerator",
-        strategy: Literal["chatterbox", "f5-tts", "both"] = "both"
+        strategy: Literal["chatterbox", "f5-tts", "both"] = "both",
+        model_variant: str = "multilingual"
     ):
         self.server_url = server_url
         self.strategy = strategy
@@ -329,7 +342,7 @@ class TTSAccelerator:
 
         # Initialize TTS engines based on strategy
         if strategy in ["chatterbox", "both"]:
-            self.chatterbox = ChatterboxEngine()
+            self.chatterbox = ChatterboxEngine(model_variant=model_variant)
         else:
             self.chatterbox = None
 
@@ -470,26 +483,37 @@ async def main():
         choices=["chatterbox", "f5-tts", "both"],
         help="TTS strategy: chatterbox (23 langs), f5-tts (cloning), or both"
     )
+    parser.add_argument(
+        "--model",
+        default="multilingual",
+        choices=["multilingual", "turbo"],
+        help="Chatterbox model variant: multilingual (default) or turbo (faster)"
+    )
     args = parser.parse_args()
 
     print("="*70)
-    print("BabbleFish TTS Accelerator - Chatterbox + F5-TTS")
+    print("BabbleFish TTS Accelerator - Chatterbox Multilingual + F5-TTS")
     print("="*70)
     print(f"Server:   {args.server}")
     print(f"Strategy: {args.strategy}")
+    print(f"Model:    Chatterbox {args.model}")
     print(f"GPU:      {torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU only'}")
 
     if args.strategy == "chatterbox":
-        print("\nTier 2: Chatterbox Turbo (23 languages, zero-shot cloning)")
+        print(f"\nTier 2: Chatterbox Multilingual ({args.model}) - 23 languages, zero-shot cloning")
     elif args.strategy == "f5-tts":
         print("\nTier 3: F5-TTS (authentic voice cloning)")
     else:
-        print("\nTier 2 + 3: Chatterbox (fast) + F5-TTS (authentic)")
+        print(f"\nTier 2 + 3: Chatterbox Multilingual ({args.model}) + F5-TTS")
 
     print("="*70)
     print()
 
-    accelerator = TTSAccelerator(server_url=args.server, strategy=args.strategy)
+    accelerator = TTSAccelerator(
+        server_url=args.server,
+        strategy=args.strategy,
+        model_variant=args.model
+    )
 
     while True:
         try:
