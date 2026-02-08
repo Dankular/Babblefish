@@ -1,8 +1,0 @@
-# Real-time translation additional dependencies
-websockets>=12.0
-onnxruntime>=1.16.0  # For Silero VAD (ONNX mode)
-sounddevice>=0.4.6   # For audio playback (optional)
-scipy>=1.11.0        # For audio processing
-
-# Note: Silero VAD will be loaded via torch.hub
-# Main requirements from requirements.txt should already be installed
