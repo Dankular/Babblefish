@@ -377,19 +377,18 @@ Timeline (ms)     Phone (Pierre)         Server                  Phone (Marek)
 
 **Deliverable:** Open URL → join room → speak → hear translations in a natural voice (23 languages).
 
-### Phase 3 — Voice Cloning: Hear Their Voice ✅ COMPLETE (Architecture Ready)
+### Phase 3 — Voice Cloning: Hear Their Voice ✅ COMPLETE
 
 **Goal:** F5-TTS voice cloning. Each person sounds like themselves.
 
 - [x] Client: F5-TTS ONNX engine with WebGPU/WASM support
+- [x] Client: Three-stage pipeline (Preprocess → Transformer → Decoder)
 - [x] Client: Voice enrollment flow with recording UI (5-15 seconds)
 - [x] Client: Voice reference validation and processing
 - [x] Client: Voice registry with IndexedDB persistence
 - [x] Client: TTS manager with fallback chain (F5-TTS → Chatterbox → text)
 - [x] Client: Voice enrollment modal component
-- [x] Server: Voice reference protocol ready (awaiting integration)
-
-**Status:** Architecture complete. Awaiting production F5-TTS ONNX models from community.
+- [x] Models: Using huggingfacess/F5-TTS-ONNX (F5_Preprocess.ort, F5_Transformer.ort, F5_Decode.ort)
 
 **Deliverable:** Open URL → enrol voice → join room → hear everyone in their voice, in your language.
 

@@ -15,19 +15,19 @@ import * as ort from 'onnxruntime-web';
  */
 export class F5TTS {
   constructor(onProgress = null) {
-    this.textEncoder = null;
-    this.durationPredictor = null;
-    this.acousticModel = null;
-    this.vocoder = null;
+    this.preprocess = null;
+    this.transformer = null;
+    this.decoder = null;
     this.isInitialized = false;
     this.onProgress = onProgress;
     this.sampleRate = 24000;
 
-    // Model URLs from Hugging Face
+    // F5-TTS ONNX Model URLs from huggingfacess/F5-TTS-ONNX
+    // Three-stage pipeline: Preprocess → Transformer → Decode
     this.modelUrls = {
-      // Using simplified placeholder paths - in production these would be actual F5-TTS ONNX models
-      encoder: 'https://huggingface.co/onnx-community/F5-TTS/resolve/main/encoder.onnx',
-      vocoder: 'https://huggingface.co/onnx-community/F5-TTS/resolve/main/vocoder.onnx',
+      preprocess: 'https://huggingface.co/huggingfacess/F5-TTS-ONNX/resolve/main/F5_Preprocess.ort',
+      transformer: 'https://huggingface.co/huggingfacess/F5-TTS-ONNX/resolve/main/F5_Transformer.ort',
+      decoder: 'https://huggingface.co/huggingfacess/F5-TTS-ONNX/resolve/main/F5_Decode.ort',
     };
   }
 
@@ -52,37 +52,34 @@ export class F5TTS {
 
       console.log(`[F5TTS] Using execution providers: ${executionProviders.join(', ')}`);
 
-      // Note: In production, we would load actual F5-TTS ONNX models
-      // For now, we create a simplified version that demonstrates the architecture
-      // The actual models would be ~200-300MB total
+      // Load F5-TTS three-stage pipeline
+      // Stage 1: Preprocess (text → preprocessed features)
+      this.reportProgress('Loading F5-TTS preprocessor...', 0.1);
+      console.log('[F5TTS] Loading F5_Preprocess model...');
+      this.preprocess = await ort.InferenceSession.create(
+        this.modelUrls.preprocess,
+        { executionProviders }
+      );
 
-      // Load encoder model
-      this.reportProgress('Loading text encoder...', 0.2);
-      console.log('[F5TTS] Loading text encoder...');
+      // Stage 2: Transformer (main model with voice conditioning)
+      this.reportProgress('Loading F5-TTS transformer...', 0.4);
+      console.log('[F5TTS] Loading F5_Transformer model (~1281 nodes)...');
+      this.transformer = await ort.InferenceSession.create(
+        this.modelUrls.transformer,
+        { executionProviders }
+      );
 
-      // In production, uncomment this:
-      // this.textEncoder = await ort.InferenceSession.create(
-      //   this.modelUrls.encoder,
-      //   { executionProviders }
-      // );
-
-      // Load vocoder model
-      this.reportProgress('Loading vocoder...', 0.6);
-      console.log('[F5TTS] Loading vocoder...');
-
-      // In production, uncomment this:
-      // this.vocoder = await ort.InferenceSession.create(
-      //   this.modelUrls.vocoder,
-      //   { executionProviders }
-      // );
+      // Stage 3: Decoder (mel spectrogram → audio waveform)
+      this.reportProgress('Loading F5-TTS decoder...', 0.8);
+      console.log('[F5TTS] Loading F5_Decode model...');
+      this.decoder = await ort.InferenceSession.create(
+        this.modelUrls.decoder,
+        { executionProviders }
+      );
 
       this.reportProgress('F5-TTS ready', 1.0);
       this.isInitialized = true;
-      console.log('[F5TTS] Initialization complete');
-
-      // Note: Since we don't have actual F5-TTS ONNX models available yet,
-      // we'll mark this as initialized but synthesis will use a fallback approach
-      console.warn('[F5TTS] Running in compatibility mode - actual F5-TTS ONNX models not yet available');
+      console.log('[F5TTS] F5-TTS ONNX models loaded successfully');
 
     } catch (error) {
       console.error('[F5TTS] Initialization failed:', error);
@@ -118,35 +115,56 @@ export class F5TTS {
     try {
       console.log(`[F5TTS] Synthesizing: "${text.substring(0, 50)}..." (${language})`);
 
-      // In production implementation:
-      // 1. Preprocess text (normalize, tokenize)
-      // 2. Extract voice embedding from reference audio
-      // 3. Run text encoder to get text embeddings
-      // 4. Run duration predictor
-      // 5. Run acoustic model with voice conditioning
-      // 6. Run vocoder to generate waveform
-      // 7. Post-process audio
+      // F5-TTS Three-Stage Pipeline:
 
-      // For now, return a placeholder that indicates F5-TTS would be used
-      // In a real implementation, this would be the actual synthesis pipeline
+      // Stage 1: Preprocess text and voice reference
+      const preprocessInputs = this.preparePreprocessInputs(text, voiceReference);
+      const preprocessOutputs = await this.preprocess.run(preprocessInputs);
 
-      // Generate silent audio as placeholder
-      const durationSeconds = Math.max(1.0, text.length * 0.05); // ~50ms per character
-      const numSamples = Math.floor(durationSeconds * this.sampleRate);
-      const audioData = new Float32Array(numSamples);
+      // Stage 2: Transformer with voice conditioning
+      const transformerInputs = {
+        // Map preprocess outputs to transformer inputs
+        // Input names depend on actual model - may need adjustment
+        ...preprocessOutputs
+      };
+      const transformerOutputs = await this.transformer.run(transformerInputs);
 
-      // Add very quiet noise so it's not complete silence (for testing)
-      for (let i = 0; i < audioData.length; i++) {
-        audioData[i] = (Math.random() - 0.5) * 0.001;
-      }
+      // Stage 3: Decode mel spectrogram to audio waveform
+      const decoderInputs = {
+        // Map transformer outputs to decoder inputs
+        ...transformerOutputs
+      };
+      const decoderOutputs = await this.decoder.run(decoderInputs);
 
-      console.log(`[F5TTS] Generated ${durationSeconds.toFixed(2)}s of audio`);
+      // Extract audio data from decoder output
+      // Output tensor name may vary - typically 'audio' or 'waveform'
+      const outputTensor = decoderOutputs[Object.keys(decoderOutputs)[0]];
+      const audioData = new Float32Array(outputTensor.data);
+
+      console.log(`[F5TTS] Generated ${(audioData.length / this.sampleRate).toFixed(2)}s of audio`);
       return audioData;
 
     } catch (error) {
       console.error('[F5TTS] Synthesis error:', error);
       throw new Error(`F5-TTS synthesis failed: ${error.message}`);
     }
+  }
+
+  /**
+   * Prepare inputs for F5-TTS preprocessing stage
+   * @private
+   */
+  preparePreprocessInputs(text, voiceReference) {
+    // TODO: Implement proper input preparation based on actual F5_Preprocess.ort requirements
+    // Refer to: https://github.com/DakeQQ/F5-TTS-ONNX for input specification
+
+    console.warn('[F5TTS] preparePreprocessInputs needs implementation for actual model input format');
+
+    // Placeholder structure - needs adjustment based on actual model spec
+    return {
+      text: new ort.Tensor('int64', new BigInt64Array([]), [1, 0]),
+      voice_ref: new ort.Tensor('float32', new Float32Array(voiceReference || []), [1, -1]),
+    };
   }
 
   /**
@@ -228,29 +246,24 @@ export class F5TTS {
    * Cleanup resources
    */
   async dispose() {
-    console.log('[F5TTS] Disposing...');
+    console.log('[F5TTS] Disposing F5-TTS models...');
 
-    if (this.textEncoder) {
-      await this.textEncoder.release();
-      this.textEncoder = null;
+    if (this.preprocess) {
+      await this.preprocess.release();
+      this.preprocess = null;
     }
 
-    if (this.durationPredictor) {
-      await this.durationPredictor.release();
-      this.durationPredictor = null;
+    if (this.transformer) {
+      await this.transformer.release();
+      this.transformer = null;
     }
 
-    if (this.acousticModel) {
-      await this.acousticModel.release();
-      this.acousticModel = null;
-    }
-
-    if (this.vocoder) {
-      await this.vocoder.release();
-      this.vocoder = null;
+    if (this.decoder) {
+      await this.decoder.release();
+      this.decoder = null;
     }
 
     this.isInitialized = false;
-    console.log('[F5TTS] Disposed');
+    console.log('[F5TTS] All F5-TTS models disposed');
   }
 }
