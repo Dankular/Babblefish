@@ -362,17 +362,19 @@ Timeline (ms)     Phone (Pierre)         Server                  Phone (Marek)
 
 **Deliverable:** Open URL → join room → speak → see translations as text on all phones.
 
-### Phase 2 — TTS: Hear Translations (Generic Voice)
+### Phase 2 — TTS: Hear Translations (Generic Voice) ✅ COMPLETE
 
-**Goal:** Add audio output using Kokoro (small, no cloning, fast).
+**Goal:** Add audio output using Chatterbox Multilingual (23 languages, no cloning).
 
-- [ ] Client: Kokoro 82M via Transformers.js + WebGPU/WASM
-- [ ] Client: Auto-synthesise incoming translations
-- [ ] Client: Audio playback queue (handle overlapping utterances)
-- [ ] Client: WebGPU detection + WASM fallback
-- [ ] Client: Model download progress UI + Service Worker caching
+- [x] Client: Chatterbox Multilingual ONNX via ONNX Runtime Web + WebGPU/WASM
+- [x] Client: Auto-synthesise incoming translations
+- [x] Client: Audio playback queue (handle overlapping utterances)
+- [x] Client: WebGPU detection + WASM fallback
+- [x] Client: Model download progress UI with loading states
+- [x] Client: useTTS hook with status tracking
+- [x] Client: TTSStatus component for user feedback
 
-**Deliverable:** Open URL → join room → speak → hear translations in a generic voice.
+**Deliverable:** Open URL → join room → speak → hear translations in a natural voice (23 languages).
 
 ### Phase 3 — Voice Cloning: Hear Their Voice
 
@@ -431,7 +433,7 @@ Timeline (ms)     Phone (Pierre)         Server                  Phone (Marek)
 
 | Component | Technology | Size (download) | Purpose |
 |---|---|---|---|
-| TTS (Phase 2) | Kokoro 82M ONNX | ~160 MB (cached) | Fast TTS, no cloning |
+| TTS (Phase 2) ✅ | Chatterbox Multilingual ONNX | ~500 MB (cached) | Natural TTS, 23 languages |
 | TTS (Phase 3) | F5-TTS ONNX (fp16) | ~200 MB (cached) | Voice cloning TTS |
 | VAD | Silero VAD ONNX | ~2 MB | Speech/silence detection |
 | Inference | ONNX Runtime Web | ~5 MB | WebGPU/WASM model execution |
@@ -467,12 +469,13 @@ Timeline (ms)     Phone (Pierre)         Server                  Phone (Marek)
 - **Voice cloning quality:** F5-TTS and Chatterbox are comparable in voice cloning quality. F5-TTS wins on availability.
 - **Trade-off acknowledged:** Chatterbox has better multilingual coverage (23 languages natively). F5-TTS multilingual capability is more limited. If/when Chatterbox gets an ONNX port, it becomes the better choice.
 
-### Why Kokoro as Phase 2 fallback?
+### Why Chatterbox Multilingual for Phase 2?
 
-- **82M params, ~160MB** — downloads fast, runs on anything
-- **Already has official ONNX + Transformers.js support** with WebGPU
-- **Sub-300ms inference** even on modest hardware
-- No voice cloning, but gets audio output working immediately while F5-TTS integration is developed
+- **Native 23-language support** — English, French, Spanish, German, Italian, Portuguese, Polish, Turkish, Russian, Dutch, Czech, Arabic, Chinese, Japanese, Hungarian, Korean, Hindi, Finnish, Vietnamese, Thai, Danish, Swedish, Ukrainian
+- **ONNX + WebGPU support** — runs in browser with hardware acceleration
+- **~500MB model size** — reasonable one-time download with browser caching
+- **Natural prosody** — better quality than Kokoro for multilingual use case
+- No voice cloning, but provides high-quality audio output while F5-TTS integration is developed
 
 ---
 
@@ -481,7 +484,7 @@ Timeline (ms)     Phone (Pierre)         Server                  Phone (Marek)
 | What | Repo | Relevance |
 |---|---|---|
 | F5-TTS in browser (WebGPU) | [nsarang/voice-cloning-f5-tts](https://github.com/nsarang/voice-cloning-f5-tts) | Core TTS implementation to adapt |
-| Kokoro in browser | [onnx-community/Kokoro-82M-v1.0-ONNX](https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX) | Phase 2 fallback TTS |
+| Chatterbox Multilingual | [onnx-community/chatterbox-multilingual-ONNX](https://huggingface.co/onnx-community/chatterbox-multilingual-ONNX) | Phase 2 TTS (23 languages) ✅ |
 | Transformers.js | [huggingface/transformers.js](https://github.com/huggingface/transformers.js) | ONNX Runtime Web + model loading |
 | faster-whisper | [SYSTRAN/faster-whisper](https://github.com/SYSTRAN/faster-whisper) | Server-side ASR |
 | CTranslate2 | [OpenNMT/CTranslate2](https://github.com/OpenNMT/CTranslate2) | CPU-optimised inference for NLLB |
