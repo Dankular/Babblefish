@@ -3,9 +3,11 @@ import { useState, useEffect } from 'react';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useAudioCapture } from '../hooks/useAudioCapture';
 import { useRoom } from '../hooks/useRoom';
+import { useTTS } from '../hooks/useTTS';
 import TranscriptView from '../components/TranscriptView';
 import StatusBar from '../components/StatusBar';
 import VolumeIndicator from '../components/VolumeIndicator';
+import TTSStatus from '../components/TTSStatus';
 import { createJoinMessage, createLeaveMessage, MessageType } from '../network/protocol';
 
 const WS_URL = 'wss://gel-supervision-desirable-cant.trycloudflare.com/ws/client';
@@ -13,12 +15,16 @@ const WS_URL = 'wss://gel-supervision-desirable-cant.trycloudflare.com/ws/client
 export default function RoomPage({ roomConfig, onLeave }) {
   const [translations, setTranslations] = useState([]);
   const [autoStarted, setAutoStarted] = useState(false);
+  const [ttsEnabled, setTtsEnabled] = useState(true);
 
   // WebSocket connection
   const { status, messages, send } = useWebSocket(WS_URL);
 
   // Room state management
   const room = useRoom(messages);
+
+  // TTS system
+  const tts = useTTS(ttsEnabled);
 
   // Audio capture with VAD
   const { isCapturing, audioLevel, isSpeaking, error: audioError, start: startAudio } = useAudioCapture(
@@ -48,6 +54,14 @@ export default function RoomPage({ roomConfig, onLeave }) {
     }
   }, [room.isJoined, isCapturing, autoStarted, startAudio]);
 
+  // Initialize TTS on first translation
+  useEffect(() => {
+    if (ttsEnabled && tts.status === 'uninitialized' && translations.length > 0) {
+      console.log('[RoomPage] Initializing TTS on first translation');
+      tts.initialize();
+    }
+  }, [ttsEnabled, tts.status, translations.length, tts]);
+
   // Handle translation messages
   useEffect(() => {
     const newTranslations = messages.filter(m => m.type === MessageType.TRANSLATION);
@@ -56,10 +70,44 @@ export default function RoomPage({ roomConfig, onLeave }) {
     }
   }, [messages]);
 
+  // Auto-synthesize new translations
+  useEffect(() => {
+    if (!ttsEnabled || tts.status !== 'ready') {
+      return;
+    }
+
+    // Process latest translation
+    if (translations.length > 0) {
+      const latest = translations[translations.length - 1];
+
+      // Only synthesize if it's for our language and not from us
+      if (latest.translations && latest.translations[roomConfig.language] && latest.speaker_id !== room.participantId) {
+        const text = latest.translations[roomConfig.language];
+        const language = roomConfig.language;
+        const metadata = {
+          speaker: latest.speaker_name,
+          sourceLanguage: latest.source_lang,
+          timestamp: latest.timestamp,
+        };
+
+        console.log(`[RoomPage] Auto-synthesizing translation from ${latest.speaker_name}`);
+        tts.speak(text, language, metadata);
+      }
+    }
+  }, [translations, ttsEnabled, tts, roomConfig.language, room.participantId]);
+
   const handleLeave = () => {
     send(createLeaveMessage());
     if (onLeave) {
       onLeave();
+    }
+  };
+
+  const toggleTTS = () => {
+    setTtsEnabled(prev => !prev);
+    if (!ttsEnabled) {
+      tts.clearQueue();
+      tts.stop();
     }
   };
 
@@ -90,6 +138,18 @@ export default function RoomPage({ roomConfig, onLeave }) {
           <VolumeIndicator
             level={audioLevel}
             isSpeaking={isSpeaking}
+          />
+
+          <TTSStatus
+            status={tts.status}
+            progress={tts.progress}
+            progressMessage={tts.progressMessage}
+            engineType={tts.engineType}
+            queueSize={tts.queueSize}
+            isPlaying={tts.isPlaying}
+            error={tts.error}
+            onToggle={toggleTTS}
+            enabled={ttsEnabled}
           />
 
           {audioError && (
