@@ -8,7 +8,7 @@ import StatusBar from '../components/StatusBar';
 import VolumeIndicator from '../components/VolumeIndicator';
 import { createJoinMessage, createLeaveMessage, MessageType } from '../network/protocol';
 
-const WS_URL = 'ws://localhost:8000/ws/client';
+const WS_URL = 'wss://gel-supervision-desirable-cant.trycloudflare.com/ws/client';
 
 export default function RoomPage({ roomConfig, onLeave }) {
   const [translations, setTranslations] = useState([]);

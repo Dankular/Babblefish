@@ -34,7 +34,12 @@ class PipelineOrchestrator:
 
         # Initialize translator
         self.translator = NLLBTranslator()
-        self.translator.load()
+        try:
+            self.translator.load()
+        except Exception as e:
+            logger.warning(f"Failed to load NLLB translator: {e}")
+            logger.warning("Server will start but translations will be limited")
+            self.translator = None
 
         self._initialized = True
         logger.info("Pipeline orchestrator initialized successfully")
@@ -71,11 +76,15 @@ class PipelineOrchestrator:
             }
 
         # Step 2: Translation - translate to all target languages
-        translations = self.translator.translate_multi(
-            text=source_text,
-            source_lang=source_lang,
-            target_langs=target_languages,
-        )
+        if self.translator:
+            translations = self.translator.translate_multi(
+                text=source_text,
+                source_lang=source_lang,
+                target_langs=target_languages,
+            )
+        else:
+            # Fallback: return source text for all languages (no translation)
+            translations = {lang: f"[No translator] {source_text}" for lang in target_languages}
 
         logger.info(
             f"Processed utterance: '{source_text}' ({source_lang}) → "

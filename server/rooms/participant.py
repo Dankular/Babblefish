@@ -18,7 +18,7 @@ class ClientCapabilities:
     preferred_mode: str = "text_only"  # "local_tts", "server_tts", "text_only"
 
     @classmethod
-    from_dict(cls, data: Dict[str, Any]) -> "ClientCapabilities":
+    def from_dict(cls, data: Dict[str, Any]) -> "ClientCapabilities":
         """Create from dictionary (from client message)."""
         return cls(
             webgpu=data.get("webgpu", False),
