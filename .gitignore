@@ -24,8 +24,11 @@ venv/
 env/
 ENV/
 
-# Models (large files)
-models/
+# Models (large files - exclude downloaded models but keep scripts/docs)
+models/*
+!models/*.py
+!models/*.md
+!models/.gitkeep
 *.onnx
 *.bin
 *.pt
