@@ -334,7 +334,15 @@ export class VoiceEnrollment {
    * @private
    */
   normalizeAudio(audioData) {
-    const maxAbs = Math.max(...audioData.map(Math.abs));
+    // Find max absolute value without spread operator (avoids stack overflow)
+    let maxAbs = 0;
+    for (let i = 0; i < audioData.length; i++) {
+      const abs = Math.abs(audioData[i]);
+      if (abs > maxAbs) {
+        maxAbs = abs;
+      }
+    }
+
     if (maxAbs === 0 || maxAbs === 1.0) {
       return audioData;
     }

@@ -175,12 +175,19 @@ export default function VoiceEnrollmentModal({ isOpen, onComplete, onSkip }) {
 
       // Report error to server for logging
       if (window.ws && window.ws.readyState === WebSocket.OPEN) {
-        window.ws.send(JSON.stringify({
-          type: 'client_error',
-          error_type: 'voice_enrollment_failed',
-          error_message: errorMsg,
-          context: { stage: 'processing', stack: err.stack }
-        }));
+        try {
+          window.ws.send(JSON.stringify({
+            type: 'client_error',
+            error_type: 'voice_enrollment_failed',
+            error_message: errorMsg,
+            context: {
+              stage: 'processing',
+              stack: err.stack ? err.stack.substring(0, 500) : 'no stack'
+            }
+          }));
+        } catch (sendErr) {
+          console.error('Failed to send error to server:', sendErr);
+        }
       }
     }
   };
