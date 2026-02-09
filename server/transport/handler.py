@@ -15,6 +15,8 @@ from server.transport.protocol import (
     UtteranceEndMessage,
     LeaveMessage,
     TranslationMessage,
+    VoiceReferenceMessage,
+    VoiceReferenceBroadcastMessage,
 )
 from server.transport.audio_codec import decode_opus
 from server.config import settings
@@ -180,6 +182,31 @@ async def handle_client(
                 # Handle leave message
                 logger.info(f"Participant {participant.name if participant else client_id} leaving")
                 break
+
+            elif msg_type == "voice_reference":
+                # Handle voice reference upload (Phase 3)
+                if not participant or not room:
+                    logger.warning(f"Received voice_reference from client {client_id} before join")
+                    continue
+
+                voice_msg = VoiceReferenceMessage(**data)
+
+                # Broadcast voice reference to other participants in the room
+                broadcast_msg = VoiceReferenceBroadcastMessage(
+                    speaker_id=participant.participant_id,
+                    speaker_name=participant.name,
+                    voice_data=voice_msg.voice_data,
+                    sample_rate=voice_msg.sample_rate,
+                    timestamp=time.time(),
+                )
+
+                await room.broadcast(
+                    broadcast_msg.dict(), exclude=participant.participant_id
+                )
+
+                logger.info(
+                    f"Broadcasted voice reference from {participant.name} to room {room.room_id}"
+                )
 
             elif msg_type == "ping":
                 # Handle heartbeat

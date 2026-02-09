@@ -4,11 +4,13 @@ import { useWebSocket } from '../hooks/useWebSocket';
 import { useAudioCapture } from '../hooks/useAudioCapture';
 import { useRoom } from '../hooks/useRoom';
 import { useTTS } from '../hooks/useTTS';
+import { useVoiceRegistry } from '../hooks/useVoiceRegistry';
 import TranscriptView from '../components/TranscriptView';
 import StatusBar from '../components/StatusBar';
 import VolumeIndicator from '../components/VolumeIndicator';
 import TTSStatus from '../components/TTSStatus';
-import { createJoinMessage, createLeaveMessage, MessageType } from '../network/protocol';
+import VoiceEnrollmentModal from '../components/VoiceEnrollment';
+import { createJoinMessage, createLeaveMessage, createVoiceReferenceMessage, MessageType } from '../network/protocol';
 
 const WS_URL = 'wss://gel-supervision-desirable-cant.trycloudflare.com/ws/client';
 
@@ -16,12 +18,17 @@ export default function RoomPage({ roomConfig, onLeave }) {
   const [translations, setTranslations] = useState([]);
   const [autoStarted, setAutoStarted] = useState(false);
   const [ttsEnabled, setTtsEnabled] = useState(true);
+  const [showVoiceEnrollment, setShowVoiceEnrollment] = useState(false);
+  const [voiceEnrolled, setVoiceEnrolled] = useState(false);
 
   // WebSocket connection
   const { status, messages, send } = useWebSocket(WS_URL);
 
   // Room state management
   const room = useRoom(messages);
+
+  // Voice registry (Phase 3)
+  const voiceRegistry = useVoiceRegistry(roomConfig.roomId, messages);
 
   // TTS system
   const tts = useTTS(ttsEnabled);
@@ -33,6 +40,21 @@ export default function RoomPage({ roomConfig, onLeave }) {
     },
     false // Don't auto-start
   );
+
+  // Show voice enrollment modal when joined (Phase 3)
+  useEffect(() => {
+    if (room.isJoined && !voiceEnrolled && !voiceRegistry.isLoading) {
+      // Check if user already has a voice reference
+      const hasVoice = voiceRegistry.hasVoiceReference(room.participantId);
+      if (!hasVoice) {
+        console.log('[RoomPage] Showing voice enrollment modal');
+        setShowVoiceEnrollment(true);
+      } else {
+        console.log('[RoomPage] Voice reference already exists');
+        setVoiceEnrolled(true);
+      }
+    }
+  }, [room.isJoined, room.participantId, voiceEnrolled, voiceRegistry]);
 
   // Join room when connected
   useEffect(() => {
@@ -70,7 +92,7 @@ export default function RoomPage({ roomConfig, onLeave }) {
     }
   }, [messages]);
 
-  // Auto-synthesize new translations
+  // Auto-synthesize new translations (Phase 3: with voice cloning)
   useEffect(() => {
     if (!ttsEnabled || tts.status !== 'ready') {
       return;
@@ -84,17 +106,30 @@ export default function RoomPage({ roomConfig, onLeave }) {
       if (latest.translations && latest.translations[roomConfig.language] && latest.speaker_id !== room.participantId) {
         const text = latest.translations[roomConfig.language];
         const language = roomConfig.language;
+
+        // Get voice reference for speaker (Phase 3)
+        const voiceRef = voiceRegistry.getVoiceReference(latest.speaker_id);
+
         const metadata = {
           speaker: latest.speaker_name,
+          speakerId: latest.speaker_id,
           sourceLanguage: latest.source_lang,
           timestamp: latest.timestamp,
         };
 
-        console.log(`[RoomPage] Auto-synthesizing translation from ${latest.speaker_name}`);
+        // Add voice reference if available
+        if (voiceRef) {
+          metadata.voiceReference = voiceRef.voice_reference;
+          metadata.voiceReferenceRate = voiceRef.sample_rate;
+          console.log(`[RoomPage] Auto-synthesizing translation from ${latest.speaker_name} with voice cloning`);
+        } else {
+          console.log(`[RoomPage] Auto-synthesizing translation from ${latest.speaker_name} (no voice reference)`);
+        }
+
         tts.speak(text, language, metadata);
       }
     }
-  }, [translations, ttsEnabled, tts, roomConfig.language, room.participantId]);
+  }, [translations, ttsEnabled, tts, roomConfig.language, room.participantId, voiceRegistry]);
 
   const handleLeave = () => {
     send(createLeaveMessage());
@@ -109,6 +144,53 @@ export default function RoomPage({ roomConfig, onLeave }) {
       tts.clearQueue();
       tts.stop();
     }
+  };
+
+  // Handle voice enrollment completion (Phase 3)
+  const handleVoiceEnrollmentComplete = async (processedAudio) => {
+    try {
+      console.log('[RoomPage] Voice enrollment completed');
+
+      // Store in local registry
+      await voiceRegistry.storeMyVoiceReference(room.participantId, {
+        ...processedAudio,
+        roomId: roomConfig.roomId,
+        speakerName: roomConfig.name,
+        language: roomConfig.language,
+      });
+
+      // Convert to base64 for WebSocket transmission
+      const float32Array = new Float32Array(processedAudio.audioData);
+      const uint8Array = new Uint8Array(float32Array.buffer);
+      let binary = '';
+      for (let i = 0; i < uint8Array.length; i++) {
+        binary += String.fromCharCode(uint8Array[i]);
+      }
+      const base64Data = btoa(binary);
+
+      // Broadcast to other participants
+      const voiceMsg = createVoiceReferenceMessage(
+        room.participantId,
+        base64Data,
+        processedAudio.sampleRate
+      );
+      send(voiceMsg);
+
+      setVoiceEnrolled(true);
+      setShowVoiceEnrollment(false);
+
+      console.log('[RoomPage] Voice reference broadcast to room');
+    } catch (err) {
+      console.error('[RoomPage] Failed to complete voice enrollment:', err);
+      alert('Failed to save voice reference. Please try again.');
+    }
+  };
+
+  // Handle voice enrollment skip (Phase 3)
+  const handleVoiceEnrollmentSkip = () => {
+    console.log('[RoomPage] Voice enrollment skipped');
+    setVoiceEnrolled(true); // Mark as enrolled to not show again
+    setShowVoiceEnrollment(false);
   };
 
   return (
@@ -166,6 +248,9 @@ export default function RoomPage({ roomConfig, onLeave }) {
                 <li key={p.id}>
                   <span className="participant-name">{p.name}</span>
                   <span className="participant-lang">{p.language}</span>
+                  {voiceRegistry.hasVoiceReference(p.id) && (
+                    <span className="voice-badge" title="Voice enrolled">🎤</span>
+                  )}
                 </li>
               ))}
             </ul>
@@ -176,6 +261,13 @@ export default function RoomPage({ roomConfig, onLeave }) {
           </button>
         </div>
       </div>
+
+      {/* Voice Enrollment Modal (Phase 3) */}
+      <VoiceEnrollmentModal
+        isOpen={showVoiceEnrollment}
+        onComplete={handleVoiceEnrollmentComplete}
+        onSkip={handleVoiceEnrollmentSkip}
+      />
     </div>
   );
 }

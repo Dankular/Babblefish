@@ -6,6 +6,7 @@ export const MessageType = {
   UTTERANCE_END: 'utterance_end',
   LEAVE: 'leave',
   PING: 'ping',
+  VOICE_REFERENCE: 'voice_reference', // Phase 3: Voice cloning
 
   // Server -> Client
   JOINED: 'joined',
@@ -13,16 +14,24 @@ export const MessageType = {
   PARTICIPANT_JOINED: 'participant_joined',
   PARTICIPANT_LEFT: 'participant_left',
   ERROR: 'error',
-  PONG: 'pong'
+  PONG: 'pong',
+  VOICE_REFERENCE_BROADCAST: 'voice_reference_broadcast' // Phase 3: Broadcast voice to room
 };
 
-export function createJoinMessage(roomId, language, name) {
-  return {
+export function createJoinMessage(roomId, language, name, voiceReference = null) {
+  const message = {
     type: MessageType.JOIN,
     room_id: roomId,
     language: language,
     name: name
   };
+
+  // Phase 3: Include voice reference if available
+  if (voiceReference) {
+    message.voice_reference = voiceReference;
+  }
+
+  return message;
 }
 
 export function createAudioMessage(data, timestamp = Date.now()) {
@@ -49,6 +58,16 @@ export function createLeaveMessage() {
 export function createPingMessage() {
   return {
     type: MessageType.PING,
+    timestamp: Date.now()
+  };
+}
+
+export function createVoiceReferenceMessage(speakerId, voiceData, sampleRate) {
+  return {
+    type: MessageType.VOICE_REFERENCE,
+    speaker_id: speakerId,
+    voice_data: voiceData, // base64 encoded audio
+    sample_rate: sampleRate,
     timestamp: Date.now()
   };
 }
@@ -90,5 +109,14 @@ export function validateParticipantMessage(msg) {
   return (
     (msg.type === MessageType.PARTICIPANT_JOINED || msg.type === MessageType.PARTICIPANT_LEFT) &&
     (msg.participant || msg.participant_id)
+  );
+}
+
+export function validateVoiceReferenceMessage(msg) {
+  return (
+    msg.type === MessageType.VOICE_REFERENCE_BROADCAST &&
+    typeof msg.speaker_id === 'string' &&
+    typeof msg.voice_data === 'string' &&
+    typeof msg.sample_rate === 'number'
   );
 }

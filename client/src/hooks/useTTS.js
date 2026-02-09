@@ -84,6 +84,11 @@ export function useTTS(enabled = true) {
 
   /**
    * Synthesize and play text
+   * @param {string} text - Text to synthesize
+   * @param {string} language - Language code
+   * @param {Object} metadata - Additional metadata
+   * @param {string} metadata.speakerId - Speaker ID for voice cloning (Phase 3)
+   * @param {ArrayBuffer} metadata.voiceReference - Voice reference audio (Phase 3)
    */
   const speak = useCallback(async (text, language = 'en', metadata = {}) => {
     if (!ttsManager.current || status !== 'ready') {
@@ -100,11 +105,19 @@ export function useTTS(enabled = true) {
       setStatus('synthesizing');
       console.log(`[useTTS] Synthesizing: "${text.substring(0, 50)}..." (${language})`);
 
+      // Prepare synthesis options (Phase 3: include voice reference)
+      const options = { ...metadata };
+      if (metadata.voiceReference && ttsManager.current.engineType === 'f5') {
+        options.voiceReference = metadata.voiceReference;
+        options.voiceReferenceRate = metadata.voiceReferenceRate || 24000;
+        console.log('[useTTS] Using voice cloning with F5-TTS');
+      }
+
       // Synthesize audio
       const audioData = await ttsManager.current.queueSynthesis({
         text,
         language,
-        options: metadata,
+        options,
       });
 
       // Enqueue for playback

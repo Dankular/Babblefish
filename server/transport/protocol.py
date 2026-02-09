@@ -16,6 +16,7 @@ class JoinMessage(BaseModel):
     language: str  # ISO 639-1 code
     name: str
     capabilities: Optional[Dict[str, Any]] = None  # Phase 2/3: client capabilities
+    voice_reference: Optional[Dict[str, Any]] = None  # Phase 3: voice reference data
 
 
 class AudioMessage(BaseModel):
@@ -44,6 +45,16 @@ class EnrolMessage(BaseModel):
 
     type: Literal["enrol"]
     audio: str  # Base64-encoded PCM audio (15s, 16kHz mono)
+
+
+class VoiceReferenceMessage(BaseModel):
+    """Voice reference from client (Phase 3)."""
+
+    type: Literal["voice_reference"]
+    speaker_id: str
+    voice_data: str  # Base64-encoded audio
+    sample_rate: int
+    timestamp: int
 
 
 # Server → Client Messages
@@ -96,6 +107,17 @@ class SpeakerEnrolledMessage(BaseModel):
     language: str
     reference_audio: str  # Base64 PCM (~200KB for 15s @ 16kHz)
     reference_text: str  # Whisper transcription
+
+
+class VoiceReferenceBroadcastMessage(BaseModel):
+    """Broadcast voice reference to room participants (Phase 3)."""
+
+    type: Literal["voice_reference_broadcast"] = "voice_reference_broadcast"
+    speaker_id: str
+    speaker_name: str
+    voice_data: str  # Base64-encoded audio
+    sample_rate: int
+    timestamp: float
 
 
 class ErrorMessage(BaseModel):

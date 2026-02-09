@@ -1,9 +1,10 @@
 // TTS Manager - Strategy pattern for multiple TTS engines
 import { ChatterboxTTS } from './chatterbox.js';
+import { F5TTS } from './f5tts.js';
 
 const TTS_ENGINE = {
   CHATTERBOX: 'chatterbox',
-  F5: 'f5', // For Phase 3
+  F5: 'f5', // Phase 3: Voice cloning
 };
 
 export class TTSManager {
@@ -21,8 +22,9 @@ export class TTSManager {
   /**
    * Initialize TTS engine based on device capabilities
    * @param {string} preferredEngine - Preferred engine type
+   * @param {boolean} fallbackOnError - Fallback to Chatterbox if F5 fails
    */
-  async initialize(preferredEngine = TTS_ENGINE.CHATTERBOX) {
+  async initialize(preferredEngine = TTS_ENGINE.CHATTERBOX, fallbackOnError = true) {
     if (this.isInitialized) {
       console.log('[TTSManager] Already initialized');
       return;
@@ -41,8 +43,19 @@ export class TTSManager {
       const hasWebGPU = await this.detectWebGPU();
       console.log(`[TTSManager] WebGPU available: ${hasWebGPU}`);
 
+      // Detect device capabilities for F5-TTS
+      const hasF5Support = await this.detectF5Support(hasWebGPU);
+
       // Initialize appropriate engine
-      switch (preferredEngine) {
+      let actualEngine = preferredEngine;
+
+      // If F5 requested but not supported, fallback to Chatterbox
+      if (preferredEngine === TTS_ENGINE.F5 && !hasF5Support && fallbackOnError) {
+        console.warn('[TTSManager] F5-TTS not supported, falling back to Chatterbox');
+        actualEngine = TTS_ENGINE.CHATTERBOX;
+      }
+
+      switch (actualEngine) {
         case TTS_ENGINE.CHATTERBOX:
           this.engine = new ChatterboxTTS(this.onProgress);
           await this.engine.initialize(hasWebGPU);
@@ -51,7 +64,21 @@ export class TTSManager {
 
         case TTS_ENGINE.F5:
           // Phase 3: F5-TTS implementation
-          throw new Error('F5-TTS not yet implemented');
+          try {
+            this.engine = new F5TTS(this.onProgress);
+            await this.engine.initialize(hasWebGPU);
+            this.engineType = TTS_ENGINE.F5;
+          } catch (error) {
+            if (fallbackOnError) {
+              console.warn('[TTSManager] F5-TTS failed, falling back to Chatterbox:', error);
+              this.engine = new ChatterboxTTS(this.onProgress);
+              await this.engine.initialize(hasWebGPU);
+              this.engineType = TTS_ENGINE.CHATTERBOX;
+            } else {
+              throw error;
+            }
+          }
+          break;
 
         default:
           throw new Error(`Unknown TTS engine: ${preferredEngine}`);
@@ -83,6 +110,30 @@ export class TTSManager {
       console.warn('[TTSManager] WebGPU detection failed:', error);
       return false;
     }
+  }
+
+  /**
+   * Detect F5-TTS support (requires WebGPU + sufficient memory)
+   * @private
+   */
+  async detectF5Support(hasWebGPU) {
+    // F5-TTS requires:
+    // 1. WebGPU for reasonable performance
+    // 2. At least 4GB RAM (models are ~300MB, need memory for inference)
+
+    if (!hasWebGPU) {
+      console.log('[TTSManager] F5-TTS requires WebGPU');
+      return false;
+    }
+
+    // Check memory (if available)
+    if (navigator.deviceMemory && navigator.deviceMemory < 4) {
+      console.log(`[TTSManager] F5-TTS requires 4GB+ RAM (detected: ${navigator.deviceMemory}GB)`);
+      return false;
+    }
+
+    console.log('[TTSManager] Device meets F5-TTS requirements');
+    return true;
   }
 
   /**
