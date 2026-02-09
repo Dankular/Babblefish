@@ -43,20 +43,23 @@ Open http://localhost:3000 → Join room → Start speaking
 📱 Browser Clients (React + WebGPU)
 ├── Silero VAD (2MB) - Voice activity detection
 ├── Opus Encoder - Audio compression
-├── Chatterbox TTS (500MB) - Natural voice (23 langs)
-├── F5-TTS (200MB) - Voice cloning
+├── 3-Tier TTS (adaptive fallback):
+│   ├── F5-TTS (200MB) - Voice cloning (primary)
+│   ├── Kokoro-82M (160MB) - Lightweight fallback
+│   └── Server Chatterbox API - GPU-accelerated final fallback
 └── IndexedDB - Voice reference storage
         │ WebSocket (opus audio ↑, json text ↓)
         ▼
-🖥️  Server (Python + FastAPI, CPU-only)
+🖥️  Server (Python + FastAPI)
 ├── faster-whisper ASR (~1.5GB, int8) - Speech-to-text
 ├── NLLB Translation (~600MB, int8) - 200 languages
+├── Chatterbox TTS (~1.5GB, GPU) - 23 languages (optional)
 ├── Room Manager - WebSocket orchestration
 └── Pipeline Orchestrator - ASR → Translation flow
 ```
 
-**Total Server:** ~3GB RAM, CPU-only
-**Total Client:** ~700MB download (cached), WebGPU or WASM
+**Total Server:** ~3GB RAM (CPU-only) or ~5GB RAM + GPU (with Chatterbox TTS)
+**Total Client:** ~360MB download (cached), WebGPU or WASM
 
 ---
 
@@ -65,8 +68,8 @@ Open http://localhost:3000 → Join room → Start speaking
 | Phase | Status | Description |
 |-------|--------|-------------|
 | **Phase 1** | ✅ Complete | Text translation (ASR + NLLB, 200 languages) |
-| **Phase 2** | ✅ Complete | Chatterbox TTS (23 languages, natural voice) |
-| **Phase 3** | ✅ Complete | F5-TTS voice cloning architecture |
+| **Phase 2** | ✅ Complete | 3-tier TTS architecture (F5 → Kokoro → Server) |
+| **Phase 3** | ✅ Complete | F5-TTS voice cloning + enrollment UI |
 | **Phase 4** | 🔄 In Progress | PWA, QR invites, speaker diarization |
 
 ---
@@ -77,11 +80,13 @@ Open http://localhost:3000 → Join room → Start speaking
 - **Runtime:** Python 3.11 + FastAPI + uvicorn
 - **ASR:** faster-whisper medium (CTranslate2 int8) - ~1.5GB
 - **Translation:** NLLB-200-distilled-600M (CTranslate2 int8) - ~600MB
+- **TTS:** Kokoro-82M + Chatterbox Multilingual (optional, with voice profiles)
 - **Protocol:** WebSocket + Opus codec
+- **Storage:** Voice profiles saved as .npy files with JSON metadata
 
 ### Client
 - **Framework:** React 19 + Vite + Tailwind CSS
-- **TTS:** Chatterbox Multilingual ONNX (~500MB) + F5-TTS (~200MB)
+- **TTS (3-Tier):** F5-TTS (~200MB) → Kokoro-82M (~160MB) → Server Chatterbox API
 - **VAD:** Silero VAD ONNX (~2MB)
 - **Inference:** ONNX Runtime Web (WebGPU/WASM)
 - **Storage:** IndexedDB (voice references)
@@ -92,10 +97,47 @@ Open http://localhost:3000 → Join room → Start speaking
 
 - **200 Languages:** NLLB translation coverage
 - **Voice Cloning:** F5-TTS with 5-15s enrollment
+- **Custom Voice Profiles:** Server-side Chatterbox voice profiles from audio URLs
+- **3-Tier TTS:** Adaptive fallback (F5-TTS → Kokoro → Server Chatterbox)
 - **Browser-Based:** No app install, models cached in browser
-- **CPU Server:** No GPU required, runs on any machine
+- **CPU Server:** No GPU required for basic operation
 - **Adaptive:** Auto-detects WebGPU, falls back to WASM or text-only
 - **Privacy:** Voice references stored locally, shared only with room participants
+
+---
+
+## Voice Profile API
+
+Create custom voice profiles for Chatterbox voice cloning:
+
+```bash
+# Create a voice profile from URL (reference audio is trimmed to 2 seconds)
+curl -X POST http://localhost:8000/api/voice_profiles \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "charlie",
+    "url": "https://example.com/audio.mp3",
+    "description": "Charlie'\''s voice",
+    "max_duration": 2.0
+  }'
+
+# List all voice profiles
+curl http://localhost:8000/api/voice_profiles
+
+# Synthesize with voice profile
+curl -X POST http://localhost:8000/api/synthesize \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "Hello World",
+    "language": "en",
+    "voice_profile": "charlie"
+  }'
+
+# Delete a voice profile
+curl -X DELETE http://localhost:8000/api/voice_profiles/charlie
+```
+
+**Note:** Chatterbox works best with short reference audio (1.5-2 seconds). Longer audio may cause ONNX model errors.
 
 ---
 
