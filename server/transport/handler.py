@@ -14,6 +14,7 @@ from server.transport.protocol import (
     AudioMessage,
     UtteranceEndMessage,
     LeaveMessage,
+    ClientErrorMessage,
     TranslationMessage,
     VoiceReferenceMessage,
     VoiceReferenceBroadcastMessage,
@@ -206,6 +207,15 @@ async def handle_client(
 
                 logger.info(
                     f"Broadcasted voice reference from {participant.name} to room {room.room_id}"
+                )
+
+            elif msg_type == "client_error":
+                # Handle client error report
+                error_msg = ClientErrorMessage(**data)
+                logger.error(
+                    f"Client error from {participant.name if participant else client_id}: "
+                    f"[{error_msg.error_type}] {error_msg.error_message}",
+                    extra={"context": error_msg.context}
                 )
 
             elif msg_type == "ping":

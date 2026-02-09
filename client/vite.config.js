@@ -7,6 +7,10 @@ export default defineConfig({
   server: {
     port: 3000,
     host: true,
+    allowedHosts: [
+      'localhost',
+      '.trycloudflare.com'
+    ],
     proxy: {
       '/ws': {
         target: 'ws://localhost:8000',

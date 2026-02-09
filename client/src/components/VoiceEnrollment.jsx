@@ -169,8 +169,19 @@ export default function VoiceEnrollmentModal({ isOpen, onComplete, onSkip }) {
       }
     } catch (err) {
       console.error('Failed to process audio:', err);
-      setError('Failed to process audio. Please try again.');
+      const errorMsg = err.message || err.toString();
+      setError(`Failed to process audio: ${errorMsg}`);
       setRecordingState('preview');
+
+      // Report error to server for logging
+      if (window.ws && window.ws.readyState === WebSocket.OPEN) {
+        window.ws.send(JSON.stringify({
+          type: 'client_error',
+          error_type: 'voice_enrollment_failed',
+          error_message: errorMsg,
+          context: { stage: 'processing', stack: err.stack }
+        }));
+      }
     }
   };
 

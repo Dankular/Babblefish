@@ -40,6 +40,15 @@ class LeaveMessage(BaseModel):
     type: Literal["leave"]
 
 
+class ClientErrorMessage(BaseModel):
+    """Client error report for server logging."""
+
+    type: Literal["client_error"]
+    error_type: str  # e.g., "voice_enrollment_failed", "audio_capture_failed"
+    error_message: str
+    context: Optional[Dict[str, Any]] = None  # Additional error context
+
+
 class EnrolMessage(BaseModel):
     """Speaker enrollment audio (Phase 3)."""
 

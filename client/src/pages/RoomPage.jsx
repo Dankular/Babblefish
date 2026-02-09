@@ -12,7 +12,7 @@ import TTSStatus from '../components/TTSStatus';
 import VoiceEnrollmentModal from '../components/VoiceEnrollment';
 import { createJoinMessage, createLeaveMessage, createVoiceReferenceMessage, MessageType } from '../network/protocol';
 
-const WS_URL = 'wss://gel-supervision-desirable-cant.trycloudflare.com/ws/client';
+const WS_URL = 'wss://roland-dresses-cubic-earned.trycloudflare.com/ws/client';
 
 export default function RoomPage({ roomConfig, onLeave }) {
   const [translations, setTranslations] = useState([]);
