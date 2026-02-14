@@ -164,7 +164,9 @@ class ChatterboxONNX:
 
             # Generate speech tokens autoregressively
             generated_speech_tokens = []  # Store only valid speech tokens
-            max_new_tokens = 256
+            # Smart max_new_tokens based on text length (faster for short text)
+            # Rough estimate: 1 token per character, max 256
+            max_new_tokens = min(256, max(32, len(text) * 2))
 
             # Variables to store speaker features for decoder
             speaker_embeddings = None

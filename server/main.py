@@ -45,11 +45,13 @@ async def lifespan(app: FastAPI):
     await pipeline.initialize()
 
     # Initialize TTS engine - Kokoro → Chatterbox pipeline
+    # TTS on GPU with int8 quantization - we have enough VRAM (4GB total, ~2.5GB free)
     try:
         from server.tts.tts_manager import TTSManager
-        logger.info("Loading TTS Manager (Kokoro + Chatterbox)...")
+        use_tts_gpu = settings.DEVICE == "cuda"  # Use GPU if available for faster TTS
+        logger.info(f"Loading TTS Manager (Kokoro + Chatterbox, GPU={use_tts_gpu})...")
         tts_engine = TTSManager()
-        tts_engine.load(use_gpu=False)
+        tts_engine.load(use_gpu=use_tts_gpu)
         logger.info("TTS Manager loaded successfully")
     except Exception as e:
         logger.warning(f"Failed to load Chatterbox TTS: {e}")

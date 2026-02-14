@@ -5,7 +5,7 @@ import logging
 from typing import Dict, List
 from pathlib import Path
 import ctranslate2
-import sentencepiece as spm
+import transformers
 from server.pipeline.language import to_flores, from_flores
 from server.config import settings
 
@@ -50,14 +50,9 @@ class NLLBTranslator:
                 intra_threads=4,
             )
 
-            # Load SentencePiece tokenizer
-            spm_path = Path(self.model_path) / "sentencepiece.model"
-            if not spm_path.exists():
-                # Try alternative path
-                spm_path = Path(self.model_path).parent / "sentencepiece.model"
-
-            self.tokenizer = spm.SentencePieceProcessor()
-            self.tokenizer.load(str(spm_path))
+            # Load transformers AutoTokenizer (required for correct NLLB usage)
+            # Note: tokenizer will be reinitialized with src_lang for each translation
+            self.tokenizer_path = self.model_path
 
             logger.info(f"NLLB translator loaded from {self.model_path}")
 
@@ -91,12 +86,17 @@ class NLLBTranslator:
             source_flores = to_flores(source_lang)
             target_flores = to_flores(target_lang)
 
-            # Tokenize with source language prefix
-            source_tokens = self.tokenizer.encode(
-                f"__{source_flores}__ {text}", out_type=str
+            # Initialize tokenizer with source language
+            tokenizer = transformers.AutoTokenizer.from_pretrained(
+                self.tokenizer_path,
+                src_lang=source_flores,
+                clean_up_tokenization_spaces=True
             )
 
-            # Translate
+            # Tokenize source text (tokenizer handles language prefix automatically)
+            source_tokens = tokenizer.convert_ids_to_tokens(tokenizer.encode(text))
+
+            # Translate with target language prefix
             results = self.translator.translate_batch(
                 [source_tokens],
                 target_prefix=[[target_flores]],
@@ -104,13 +104,9 @@ class NLLBTranslator:
                 max_decoding_length=256,
             )
 
-            # Decode
-            translated_tokens = results[0].hypotheses[0]
-            translated = self.tokenizer.decode(translated_tokens)
-
-            # Remove target language prefix if present
-            if translated.startswith(f"__{target_flores}__"):
-                translated = translated[len(f"__{target_flores}__"):].strip()
+            # Decode - skip first token (target language code)
+            translated_tokens = results[0].hypotheses[0][1:]
+            translated = tokenizer.decode(tokenizer.convert_tokens_to_ids(translated_tokens))
 
             return translated
 
@@ -146,4 +142,4 @@ class NLLBTranslator:
 
     def is_loaded(self) -> bool:
         """Check if the model is loaded."""
-        return self.translator is not None and self.tokenizer is not None
+        return self.translator is not None

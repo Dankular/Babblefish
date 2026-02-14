@@ -74,25 +74,29 @@ class TTSManager:
             else:
                 logger.warning(f"Voice profile '{voice_profile}' not found, using Kokoro")
 
-        # Use Kokoro → Chatterbox pipeline
-        voice = voice_id or 'af_sarah'  # Default Kokoro voice
-        logger.info(f"TTS Manager: '{text[:50]}...' → {language} (voice={voice})")
+        # Kokoro only supports English - use direct Chatterbox for other languages
+        if language != 'en':
+            logger.info(f"TTS Manager: '{text[:50]}...' → {language} (Chatterbox direct)")
+            logger.info(f"[1/1] Chatterbox synthesis (Kokoro doesn't support {language})...")
+            chatterbox_audio = self.chatterbox.synthesize(
+                text=text,
+                language=language,
+                exaggeration=exaggeration,
+                reference_audio=None  # No reference for non-English
+            )
+            logger.info(f"TTS complete: {len(chatterbox_audio)} samples")
+            return chatterbox_audio
 
-        # Map language codes to Kokoro format (en → en-us, es → es-es, etc.)
-        kokoro_lang_map = {
-            'en': 'en-us', 'es': 'es-es', 'fr': 'fr-fr', 'de': 'de-de',
-            'it': 'it-it', 'pt': 'pt-br', 'ru': 'ru-ru', 'zh': 'zh-cn',
-            'ja': 'ja-jp', 'ko': 'ko-kr', 'nl': 'nl-nl', 'pl': 'pl-pl',
-            'tr': 'tr-tr', 'ar': 'ar-sa'
-        }
-        kokoro_lang = kokoro_lang_map.get(language, 'en-us')
+        # Use Kokoro → Chatterbox pipeline for English
+        voice = voice_id or 'af_sarah'  # Default Kokoro voice
+        logger.info(f"TTS Manager: '{text[:50]}...' → {language} (Kokoro + Chatterbox)")
 
         try:
-            # Step 1: Generate reference voice with Kokoro
+            # Step 1: Generate reference voice with Kokoro (English only)
             logger.info(f"[1/2] Kokoro synthesis...")
             kokoro_audio = self.kokoro.synthesize(
                 text=text,
-                language=kokoro_lang,
+                language='en-us',
                 voice=voice
             )
 
@@ -110,9 +114,9 @@ class TTSManager:
 
         except Exception as e:
             logger.error(f"TTS pipeline failed: {e}")
-            # Fallback to Kokoro only
+            # Fallback to Kokoro only for English
             logger.warning("Falling back to Kokoro-only synthesis")
-            return self.kokoro.synthesize(text, kokoro_lang, voice)
+            return self.kokoro.synthesize(text, 'en-us', voice)
 
     def get_sample_rate(self) -> int:
         return 24000
